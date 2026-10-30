@@ -2,7 +2,7 @@
 
 **A VR first-aid trainer where you improvise a splint from everyday objects under time pressure, so your hands already know what to do in a real emergency.**
 
-*(Ideal version of the app. How much gets implemented by the end of the semester is decided later.)*
+
 
 **Main feature (focus of this document):** building and tying an improvised splint on a friend's broken arm, step by step, with hand interaction and a timer.
 
