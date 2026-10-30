@@ -279,8 +279,4 @@ All objects gray, primitive, real-world scale (1 Unity unit = 1 m), to test scal
 
 ---
 
-## Checklist for this week
-- [ ] Copy this to the Google Doc template and link it in the repo README
-- [ ] Underline / highlight assets as in the legend
-- [ ] Add hand-drawn or Excalidraw sketches of the key frames (optional)
-- [ ] Graybox the hiking scene in ProBuilder/Blender and test scale in VR
+
