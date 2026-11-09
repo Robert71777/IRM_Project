@@ -496,7 +496,21 @@ namespace SplintIt.EditorTools
             if (rig == null) { EditorApplication.ExecuteMenuItem("GameObject/XR/XR Origin (VR)"); rig = Object.FindFirstObjectByType<XROrigin>(); }
             if (rig == null) { EditorApplication.ExecuteMenuItem("GameObject/XR/XR Origin (Action-based)"); rig = Object.FindFirstObjectByType<XROrigin>(); }
 
-            if (rig != null) rig.transform.position = Vector3.zero;
+            if (rig != null)
+            {
+                rig.transform.position = Vector3.zero;
+
+                // The scene is authored with the ground surface at y = 0 and the player standing at the
+                // origin, so the headset must report a FLOOR-relative pose (eyes ~1.6 m up). Without this
+                // the default Device-relative mode starts the head near y = 0 and the camera ends up at or
+                // below floor level -> "camera under the map".
+                rig.RequestedTrackingOriginMode = XROrigin.TrackingOriginMode.Floor;
+
+                // Safety net for the editor / XR Device Simulator (no real floor): if the camera sits on the
+                // floor, raise the floor-offset object so the eyes start at a sensible standing height.
+                if (Mathf.Approximately(rig.CameraYOffset, 0f))
+                    rig.CameraYOffset = 1.6f;
+            }
             else
             {
                 Debug.LogWarning("[SplintIt] Could not create an XR Origin automatically. A fallback camera was added; add GameObject > XR > XR Origin (VR) yourself (see SETUP.md).");

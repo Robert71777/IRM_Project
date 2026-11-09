@@ -15,9 +15,22 @@ namespace SplintIt
 
         XROrigin origin;
 
+        // Baseline floor-offset height captured at startup. In Floor tracking mode the runtime supplies the
+        // real standing height and this is ~0; in the editor / XR Device Simulator the scene builder seeds it
+        // with CameraYOffset (~1.6 m) so the eyes start above the ground. Comfort offsets are applied ON TOP
+        // of this baseline so toggling Seated/Height never drops the camera back under the map.
+        float baseHeight;
+
         void Awake()
         {
             origin = FindFirstObjectByType<XROrigin>();
+            if (origin != null)
+            {
+                var offsetObject = origin.CameraFloorOffsetObject != null
+                    ? origin.CameraFloorOffsetObject.transform
+                    : origin.transform;
+                baseHeight = offsetObject.localPosition.y;
+            }
             SaveSystem.Load();
             Apply();
         }
@@ -59,7 +72,7 @@ namespace SplintIt
         void Apply()
         {
             if (origin == null) return;
-            float total = HeightOffset + (Seated ? seatedBoost : 0f);
+            float total = baseHeight + HeightOffset + (Seated ? seatedBoost : 0f);
 
             // Move the XR Origin's camera-floor offset object (the documented way to raise/lower the view).
             // Fall back to the origin transform if no dedicated offset object is set.
