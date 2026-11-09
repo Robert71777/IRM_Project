@@ -4,7 +4,11 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/SplintItDemo/Scenes/HikingDemo.unity
+    guid: bf2fb04addaf9f34cb0cec892ce96870
   m_configObjects:
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: da4fe348b6931e34f8aff77b495c34bc, type: 2}
     com.unity.xr.openxr.settings4: {fileID: 11400000, guid: 0f125324dfba34c41bef5f9e8af545ab, type: 2}
   m_UseUCBPForAssetBundles: 0

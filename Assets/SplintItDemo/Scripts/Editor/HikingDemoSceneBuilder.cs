@@ -94,8 +94,11 @@ namespace SplintIt.EditorTools
         static float Rf(float a, float b) { return a + (float)rng.NextDouble() * (b - a); }
         static Color H(string hex) { Color c; ColorUtility.TryParseHtmlString(hex, out c); return c; }
 
-        static Shader LitShader { get { return Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard"); } }
-        static Shader UnlitShader { get { return Shader.Find("Universal Render Pipeline/Unlit") ?? Shader.Find("Unlit/Color"); } }
+        // URP shaders render magenta when no URP pipeline asset is active, so pick by the ACTIVE pipeline.
+        static bool UsingSrp { get { return UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline != null; } }
+        static Shader LitShader { get { return (UsingSrp ? Shader.Find("Universal Render Pipeline/Lit") : null) ?? Shader.Find("Standard"); } }
+        static Shader UnlitShader { get { return (UsingSrp ? Shader.Find("Universal Render Pipeline/Unlit") : null) ?? Shader.Find("Unlit/Color"); } }
+        
 
         static Material Mat(string name, Shader shader, Color c, float smooth)
         {
