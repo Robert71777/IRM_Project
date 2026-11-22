@@ -7,6 +7,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.XR.Interaction.Toolkit;
+using UnityEngine.XR.Interaction.Toolkit.Inputs.Simulation;
 using UnityEngine.XR.Interaction.Toolkit.UI;
 
 namespace SplintIt.EditorTools
@@ -20,6 +21,8 @@ namespace SplintIt.EditorTools
     public static partial class HikingDemoSceneBuilder
     {
         const string Root = "Assets/SplintItDemo";
+        const string XrRigPrefabPath = "Assets/Samples/XR Interaction Toolkit/3.0.7/Starter Assets/Prefabs/XR Origin (XR Rig).prefab";
+        const string SimulatorPrefabPath = "Assets/Samples/XR Interaction Toolkit/3.0.7/XR Device Simulator/XR Device Simulator.prefab";
         static readonly Vector3 PlayerHead = new Vector3(0f, 1.5f, 0f);
 
         // ---- layout (world metres; the player stands at the origin facing +Z) ----
@@ -40,6 +43,15 @@ namespace SplintIt.EditorTools
         [MenuItem("SplintIt/Build Hiking Demo Scene")]
         public static void Build()
         {
+            // Check before replacing the open scene. The bare XR Origin menu item has no controllers.
+            if (AssetDatabase.LoadAssetAtPath<GameObject>(XrRigPrefabPath) == null ||
+                AssetDatabase.LoadAssetAtPath<GameObject>(SimulatorPrefabPath) == null)
+            {
+                EditorUtility.DisplayDialog("SplintIt",
+                    "XR prefabs are missing. Restore the committed XRI 3.0.7 Starter Assets and XR Device Simulator samples, then build again.", "OK");
+                return;
+            }
+
             if (TMP_Settings.instance == null)
             {
                 EditorUtility.DisplayDialog("SplintIt",
@@ -77,8 +89,8 @@ namespace SplintIt.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
-            Debug.Log("[SplintIt] Scene built: " + scenePath + (rig == null ? "  (NO XR ORIGIN FOUND: add one via GameObject > XR > XR Origin (VR), see SETUP.md)" : ""));
-            EditorUtility.DisplayDialog("SplintIt", "Hiking demo scene built:\n" + scenePath + "\n\nPress Play (use the XR Device Simulator if you have no headset).", "OK");
+            Debug.Log("[SplintIt] Scene built with the configured XRI controller rig: " + scenePath);
+            EditorUtility.DisplayDialog("SplintIt", "Hiking demo scene built:\n" + scenePath + "\n\nSimulator included: focus Game view, Tab to a controller, aim and left-click a mode. Hold G to grab items after the opening sequence. Disable XR Device Simulator when using a real headset.", "OK");
         }
 
         // ------------------------------------------------------------------ helpers
@@ -496,31 +508,23 @@ namespace SplintIt.EditorTools
         static XROrigin EnsureRig()
         {
             var rig = Object.FindFirstObjectByType<XROrigin>();
-            if (rig == null) { EditorApplication.ExecuteMenuItem("GameObject/XR/XR Origin (VR)"); rig = Object.FindFirstObjectByType<XROrigin>(); }
-            if (rig == null) { EditorApplication.ExecuteMenuItem("GameObject/XR/XR Origin (Action-based)"); rig = Object.FindFirstObjectByType<XROrigin>(); }
-
-            if (rig != null)
+            if (rig == null)
             {
-                rig.transform.position = Vector3.zero;
-
-                // The scene is authored with the ground surface at y = 0 and the player standing at the
-                // origin, so the headset must report a FLOOR-relative pose (eyes ~1.6 m up). Without this
-                // the default Device-relative mode starts the head near y = 0 and the camera ends up at or
-                // below floor level -> "camera under the map".
-                rig.RequestedTrackingOriginMode = XROrigin.TrackingOriginMode.Floor;
-
-                // Safety net for the editor / XR Device Simulator (no real floor): if the camera sits on the
-                // floor, raise the floor-offset object so the eyes start at a sensible standing height.
-                if (Mathf.Approximately(rig.CameraYOffset, 0f))
-                    rig.CameraYOffset = 1.6f;
+                // Includes tracked controllers, near/far and poke interactors, UI trigger bindings,
+                // controller visuals and an InputActionManager referencing XRI Default Input Actions.
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(XrRigPrefabPath);
+                var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+                rig = instance.GetComponent<XROrigin>();
             }
-            else
-            {
-                Debug.LogWarning("[SplintIt] Could not create an XR Origin automatically. A fallback camera was added; add GameObject > XR > XR Origin (VR) yourself (see SETUP.md).");
-                var cam = new GameObject("Fallback Camera", typeof(Camera), typeof(AudioListener));
-                cam.tag = "MainCamera";
-                cam.transform.position = new Vector3(0, 1.6f, 0);
-            }
+
+            rig.transform.position = Vector3.zero;
+            // Simulated head poses start at y=0. Device tracking keeps the authored 1.6 m offset;
+            // Floor tracking would reset that offset to zero. Comfort settings build on this baseline.
+            rig.RequestedTrackingOriginMode = XROrigin.TrackingOriginMode.Device;
+            rig.CameraYOffset = 1.6f;
+            rig.CameraFloorOffsetObject.transform.localPosition = new Vector3(0f, 1.6f, 0f);
+            PrefabUtility.RecordPrefabInstancePropertyModifications(rig);
+            PrefabUtility.RecordPrefabInstancePropertyModifications(rig.CameraFloorOffsetObject.transform);
 
             if (Object.FindFirstObjectByType<XRInteractionManager>() == null)
                 new GameObject("XR Interaction Manager").AddComponent<XRInteractionManager>();
@@ -531,6 +535,15 @@ namespace SplintIt.EditorTools
                 var es = new GameObject("EventSystem");
                 es.AddComponent<EventSystem>();
                 es.AddComponent<XRUIInputModule>();
+            }
+
+            if (Object.FindFirstObjectByType<XRDeviceSimulator>() == null)
+            {
+                var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(SimulatorPrefabPath);
+                var simulator = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+                // Keep keyboard simulation out of headset builds; disable it for Link/Air Link testing.
+                simulator.tag = "EditorOnly";
+                PrefabUtility.RecordPrefabInstancePropertyModifications(simulator);
             }
             return rig;
         }

@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using UnityEngine.XR.Interaction.Toolkit.Interactors;
 
 namespace SplintIt
 {
@@ -9,7 +10,7 @@ namespace SplintIt
     /// Rigidbody away from the fingertip and fire light feedback.
     ///
     /// It drives whichever interactable is already on the object:
-    ///  - NPC limbs get an XRSimpleInteractable (they are not grabbable), so poke/direct/ray hovers push them.
+    ///  - NPC limbs get an XRSimpleInteractable (they are not grabbable), so poke/direct hovers push them.
     ///  - Grabbable items keep their XRGrabInteractable; a poke that is not a grab still nudges them, and the
     ///    push is skipped while the item is actually held so grabbing stays clean.
     ///
@@ -63,6 +64,9 @@ namespace SplintIt
 
         void Poke(IXRInteractor interactor, float scale = 1f)
         {
+            // A controller ray can hover from metres away. Only physical touch should shove objects;
+            // otherwise aiming at a supply knocks it away before the player can press grip.
+            if (!(interactor is XRPokeInteractor) && !(interactor is XRDirectInteractor)) return;
             if (body == null || body.isKinematic) return;           // pinned limb absorbs it
             if (interactable != null && interactable.isSelected) return;   // held item: no shove
             if (Time.time < nextPokeTime) return;

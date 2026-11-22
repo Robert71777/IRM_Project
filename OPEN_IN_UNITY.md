@@ -4,6 +4,7 @@ This repository is now a Unity project you can open directly from Unity Hub.
 
 ```
 Assets/SplintItDemo/      scripts (+ asmdefs) and SETUP.md
+Assets/Samples/          XRI 3.0.7 Starter Assets and XR Device Simulator
 Packages/manifest.json    package dependencies (XRI, OpenXR, URP, uGUI/TMP, ...)
 ProjectSettings/          editor version + player settings
 ```
@@ -30,14 +31,24 @@ Unity-version specific, so do them once in the editor:
    under Project Settings > Graphics. A VR Core template project already has one.
 
 ## 3. Build the scene and play
-1. Menu **SplintIt > Build Hiking Demo Scene** — generates
+1. Open `Assets/SplintItDemo/Scenes/HikingDemo.unity`. Its configured XR rig and simulator are included.
+   To regenerate the scenery/gameplay, use **SplintIt > Build Hiking Demo Scene** — generates
    `Assets/SplintItDemo/Scenes/HikingDemo.unity`, materials, meshes, and adds the scene
    to Build Settings.
 2. Play:
-   - **No headset:** Package Manager > XR Interaction Toolkit > Samples > import
-     **XR Device Simulator**, drag its prefab into the scene, press Play.
-   - **Quest via Link/Air Link:** press Play with the headset connected.
+   - **No headset:** press Play and focus the **Game** view. Do not add a second simulator.
+     Press **Tab** to select a controller, aim its ray at **GUIDED** or **EVALUATION**, and left-click
+     (simulated trigger). After the opening sequence, aim at an item and hold **G** (grip) to pick it up;
+     release **G** to drop it. Hold **Space** to manipulate the right controller or **Left Shift** for the left;
+     **R** switches the mouse between moving and rotating the controller.
+   - **Quest via Link/Air Link:** disable the **XR Device Simulator** object, then press Play with the headset connected.
    - **Standalone Quest:** File > Build Settings > Android > Switch Platform > Build And Run.
+     The simulator is tagged `EditorOnly` and is excluded from the build.
+
+The rig uses device-relative tracking with a 1.6 m camera offset so simulated head poses start above
+the ground. Its Input Action Manager enables **XRI Default Input Actions**; both controllers include
+near/far and poke interactors. Creating only **GameObject > XR > XR Origin (VR)** does not supply that setup.
+The GitHub source revision and license are recorded in `references/XRI-STARTER-ASSETS.md`.
 
 ## Status / caveats
 - These scripts were written and statically checked **without** a Unity install, so the

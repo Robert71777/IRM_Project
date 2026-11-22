@@ -4,10 +4,14 @@ This folder is a **scaffold**: C# scripts plus an editor script that builds the 
 It was written without access to Unity, so the first compile happens on your machine. If the Console shows an error,
 see "If something does not compile" at the bottom (usually a one-line namespace fix).
 
+The full repository includes the configured XRI **3.0.7 Starter Assets**, **XR Device Simulator**, and
+an already-wired `Scenes/HikingDemo.unity`. Open that scene and press Play; the setup/import steps below
+are only needed when transferring the demo into another Unity project.
+
 ## 1. Create the project
 1. Unity Hub -> Unity **6000.x (Unity 6)** -> template **VR Core** (URP) or **Mixed Reality** (URP).
 2. Package Manager (Window > Package Manager) - make sure these are installed:
-   - **XR Interaction Toolkit 3.x** (then, on its page, Samples > import **Starter Assets**)
+   - **XR Interaction Toolkit 3.0.7** (then, on its page, Samples > import **Starter Assets** and **XR Device Simulator**)
    - **XR Plugin Management** + **OpenXR** (with the VR templates these are already there)
    - **Unity UI (uGUI)** (includes TextMeshPro)
 3. Window > TextMeshPro > **Import TMP Essential Resources** (needed once, the builder checks for it).
@@ -21,14 +25,23 @@ see "If something does not compile" at the bottom (usually a one-line namespace 
 ## 3. Build the scene
 1. Menu **SplintIt > Build Hiking Demo Scene**. It creates `Assets/SplintItDemo/Scenes/HikingDemo.unity`, adds it to Build Settings,
    and creates materials/meshes under `Assets/SplintItDemo/`.
-2. If the log says "Could not create an XR Origin", add one by hand (GameObject > XR > **XR Origin (VR)**), put it at (0,0,0),
-   and make sure there is an **XR Interaction Manager** and a **UI EventSystem** (GameObject > XR > UI EventSystem). Then save.
+2. The builder instantiates the Starter Assets **XR Origin (XR Rig)** prefab, which includes left/right controllers,
+   near/far and poke interactors, and an Input Action Manager with **XRI Default Input Actions** assigned.
+   It also adds the simulator, one **XR Interaction Manager**, and one **UI EventSystem**. A bare **XR Origin (VR)**
+   created through Unity's GameObject menu has no controllers and cannot replace this prefab.
 3. Re-running the menu item regenerates the scene from scratch (your manual edits to that scene are overwritten, so duplicate the scene first if you customise it).
 
 ## 4. Play it
-- **No headset:** in Package Manager > XR Interaction Toolkit > Samples, import **XR Device Simulator**, drag its prefab into the scene, press Play.
-- **Quest (Link / Air Link):** press Play with the headset connected.
-- **Standalone Quest build:** File > Build Settings > Android > Switch Platform > Build And Run.
+- **No headset:** press Play, focus the **Game** view, and press **Tab** to select a controller. Aim the controller ray
+  at a mode button and left-click (trigger). Hold **G** to grab an item after the opening sequence; release **G** to drop it.
+  Hold **Space** to manipulate the right controller or **Left Shift** for the left. **R** switches mouse move/rotate mode.
+  The scene already contains a simulator; do not add another.
+- **Quest (Link / Air Link):** disable **XR Device Simulator**, then press Play with the headset connected.
+- **Standalone Quest build:** File > Build Settings > Android > Switch Platform > Build And Run. The simulator is
+  tagged `EditorOnly`, so it is excluded from builds.
+
+Items intentionally remain disabled on the main menu and during the opening sequence. Select a mode first.
+For simulator height, the rig uses device-relative tracking and a 1.6 m camera offset; comfort settings apply over that baseline.
 
 Round: **Guided** (no timer, glowing hints) or **Evaluation** (150 s, no hints). When a round starts, the friend
 **collapses** in a short ragdoll cutscene and settles by the log; then splinting begins. Pick items from the SUPPLIES
@@ -45,8 +58,9 @@ still ~1 s) -> press CHECK SPLINT. Left menu button = pause.
   the splint placement zones are - then pins it kinematic. This is what keeps the round playable: the zones, ghost
   outlines and the arm the player works on all line up. The rest of the body (torso, head, legs, good arm) stays
   collapsed on the ground and can be **poked / pushed**.
-- `Pokeable` (on every limb and every grabbable item) pushes the Rigidbody away from your fingertip when you touch it.
+- `Pokeable` (on every limb and every grabbable item in newly built scenes) pushes the Rigidbody away from your fingertip when a poke/direct interactor touches it.
   Held items and pinned/kinematic bodies absorb the poke instead of moving.
+  Distant controller-ray/near-far hovers do not shove props away before you can grab them.
 - Tuning: cutscene length = `DemoFlow.collapseSeconds`; fall shove = `RagdollController.collapseShove`; limb push
   strength = `Pokeable.pushStrength`. The injured limb stays gray/placeholder like the rest (no gore).
 
