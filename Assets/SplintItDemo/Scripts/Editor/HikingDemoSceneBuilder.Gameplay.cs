@@ -90,9 +90,9 @@ namespace SplintIt.EditorTools
         /// <summary>Register a limb with the ragdoll, connect it to a parent body with a joint, and make it
         /// pokeable. parentBody null = this is the root body (the torso).</summary>
         static RagdollController.Part Limb(RagdollController rag, GameObject go, Rigidbody parentBody, float mass, bool injuredArm,
-            Vector3 lowTwist, Vector3 highTwist, float swing)
+            Vector3 lowTwist, Vector3 highTwist, float swing, bool injuredArmChain = false)
         {
-            var part = rag.AddPart(go.transform, injuredArm, mass);
+            var part = rag.AddPart(go.transform, injuredArm, mass, injuredArmChain);
 
             if (parentBody != null)
             {
@@ -103,6 +103,7 @@ namespace SplintIt.EditorTools
                 joint.highTwistLimit = new SoftJointLimit { limit = highTwist.x };
                 joint.swing1Limit = new SoftJointLimit { limit = swing };
                 joint.swing2Limit = new SoftJointLimit { limit = swing };
+                part.joint = joint;
             }
 
             // poke/push: a simple interactable + impulse on this body
@@ -165,7 +166,10 @@ namespace SplintIt.EditorTools
             Limb(rag, head, torsoBody, 2f, false, new Vector3(-20, 0, 0), new Vector3(20, 0, 0), 20);
             var lUpperBody = Limb(rag, lUpper, torsoBody, 1.5f, false, new Vector3(-40, 0, 0), new Vector3(40, 0, 0), 55).body;
             Limb(rag, lf, lUpperBody, 1f, false, new Vector3(-10, 0, 0), new Vector3(80, 0, 0), 20);
-            var rUpperBody = Limb(rag, rUpper, torsoBody, 1.5f, false, new Vector3(-40, 0, 0), new Vector3(40, 0, 0), 55).body;
+            // injured right arm is its OWN pinned assembly: the upper arm has no joint to the torso, so when the
+            // body collapses the arm falls as one connected piece and RestInjuredArm can return it to the splint
+            // pose without a torso joint fighting it (and it survives retries, unlike destroying joints).
+            var rUpperBody = Limb(rag, rUpper, null, 1.5f, false, new Vector3(-40, 0, 0), new Vector3(40, 0, 0), 55, injuredArmChain: true).body;
             // the injured forearm + hand are the pinned part: locked kinematic while the splint is built
             var faBody = Limb(rag, fa, rUpperBody, 1f, true, new Vector3(-10, 0, 0), new Vector3(80, 0, 0), 20).body;
             Limb(rag, rHand, faBody, 0.4f, true, new Vector3(-10, 0, 0), new Vector3(10, 0, 0), 15);

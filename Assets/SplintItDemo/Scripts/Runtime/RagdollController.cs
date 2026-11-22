@@ -18,6 +18,8 @@ namespace SplintIt
     ///                        starts kinematic so the NPC stands in the authored pose.
     ///   StandUp()          - freeze everything back to the standing pose (menu / before the fall).
     ///   Collapse()         - release the body to physics so the friend falls; optional shove direction.
+    ///   RestInjuredArm()   - after the fall, return the injured arm to its authored pose (at the splint zones)
+    ///                        and pin it; the rest of the body stays collapsed and poke-able.
     ///   PinInjuredArm(on)  - lock/unlock just the injured forearm (and hand) so the splint stays put.
     /// </summary>
     public class RagdollController : MonoBehaviour
@@ -27,7 +29,9 @@ namespace SplintIt
         {
             public Transform transform;
             public Rigidbody body;
+            public Joint joint;         // joint connecting this limb to its parent body (null for the torso root)
             public bool isInjuredArm;   // the one limb that gets pinned during splinting
+            public bool isInjuredArmChain;  // injured arm + its upper arm: restored to the authored pose for splinting
 
             // authored standing pose, captured at Build() so StandUp() can restore it exactly
             public Vector3 localPos;
@@ -47,7 +51,7 @@ namespace SplintIt
         public bool Collapsed { get; private set; }
 
         /// <summary>Register one limb. Called by the scene builder for each primitive body part.</summary>
-        public Part AddPart(Transform t, bool injuredArm, float mass)
+        public Part AddPart(Transform t, bool injuredArm, float mass, bool injuredArmChain = false)
         {
             if (t == null) return null;
 
@@ -63,6 +67,7 @@ namespace SplintIt
                 transform = t,
                 body = rb,
                 isInjuredArm = injuredArm,
+                isInjuredArmChain = injuredArm || injuredArmChain,
                 localPos = t.localPosition,
                 localRot = t.localRotation
             };
@@ -126,6 +131,34 @@ namespace SplintIt
 #endif
                     p.body.angularVelocity = Vector3.zero;
                 }
+            }
+        }
+
+        /// <summary>After the collapse, restore the injured arm (upper arm + forearm + hand) to its authored
+        /// resting pose so it sits forward exactly where the splint placement zones are, then pin the forearm
+        /// and hand kinematic. The rest of the body stays collapsed on the ground and poke-able.
+        ///
+        /// This is what makes the round playable: the zones are anchored at the authored arm position, so the
+        /// arm the player works on must return there rather than lie wherever it fell.</summary>
+        public void RestInjuredArm()
+        {
+            foreach (var p in parts)
+            {
+                if (p == null || p.transform == null || !p.isInjuredArmChain) continue;
+
+                // snap back to the authored local pose (coincides with the placement zones)
+                p.transform.localPosition = p.localPos;
+                p.transform.localRotation = p.localRot;
+
+                if (p.body == null) continue;
+                // pin the whole injured-arm assembly kinematic so it holds the splint pose exactly.
+                p.body.isKinematic = true;
+#if UNITY_6000_0_OR_NEWER
+                p.body.linearVelocity = Vector3.zero;
+#else
+                p.body.velocity = Vector3.zero;
+#endif
+                p.body.angularVelocity = Vector3.zero;
             }
         }
 

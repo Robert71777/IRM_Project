@@ -38,10 +38,13 @@ still ~1 s) -> press CHECK SPLINT. Left menu button = pause.
 ## Collapse cutscene, ragdoll and poke/push
 - `RagdollController` (on `Props > NPC_InjuredHiker`) adds a Rigidbody + collider + `CharacterJoint` to every gray
   limb. The body is **kinematic (standing)** until the round starts, then `DemoFlow` plays the cutscene: `StandUp()` ->
-  `Collapse()` (the friend falls) -> after `collapseSeconds` the **injured forearm is pinned** (`PinInjuredArm(true)`).
-- The forearm is pinned on purpose: the splint placement zones are anchored at the forearm, so it must not move while
-  you build the splint, otherwise placed pieces would drift. The rest of the body (torso, head, legs, good arm) stays
-  soft and can be **poked / pushed**.
+  `Collapse()` (the friend falls) -> after `collapseSeconds` the **injured arm is returned to the splint pose and
+  pinned** (`RestInjuredArm()`).
+- The injured arm (upper arm + forearm + hand) is a self-contained assembly with no joint to the torso, so on
+  collapse it falls as one piece, and `RestInjuredArm()` snaps it back to its authored resting pose - exactly where
+  the splint placement zones are - then pins it kinematic. This is what keeps the round playable: the zones, ghost
+  outlines and the arm the player works on all line up. The rest of the body (torso, head, legs, good arm) stays
+  collapsed on the ground and can be **poked / pushed**.
 - `Pokeable` (on every limb and every grabbable item) pushes the Rigidbody away from your fingertip when you touch it.
   Held items and pinned/kinematic bodies absorb the poke instead of moving.
 - Tuning: cutscene length = `DemoFlow.collapseSeconds`; fall shove = `RagdollController.collapseShove`; limb push

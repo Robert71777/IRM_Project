@@ -207,8 +207,9 @@ namespace SplintIt
 
             yield return new WaitForSeconds(collapseSeconds);
 
-            // body has settled: pin the injured forearm so placed splint pieces never drift
-            if (ragdoll != null) ragdoll.PinInjuredArm(true);
+            // body has settled: return the injured arm to the splint position and pin it, so the placement
+            // zones line up with the arm the player works on (the rest of the body stays collapsed / poke-able)
+            if (ragdoll != null) ragdoll.RestInjuredArm();
 
             BeginPlay(mode);
         }
