@@ -11,7 +11,7 @@ namespace SplintIt.EditorTools
     {
         class NpcRefs
         {
-            public Transform root; public NpcReaction reaction;
+            public Transform root; public NpcReaction reaction; public RagdollController ragdoll;
         }
 
         class ZoneRefs
@@ -61,6 +61,57 @@ namespace SplintIt.EditorTools
 
         // ------------------------------------------------------------------ NPC (gray placeholder)
 
+        // Colliders tuned to the primitive each limb uses. Capsules store a height along a local axis.
+        static void LimbCapsule(GameObject go, int direction, float radiusScale = 0.5f)
+        {
+            // strip the primitive's default collider, add a capsule matched to the mesh
+            var old = go.GetComponent<Collider>();
+            if (old != null) Object.DestroyImmediate(old);
+            var cc = go.AddComponent<CapsuleCollider>();
+            cc.direction = direction;             // 0=X, 1=Y, 2=Z
+            cc.radius = radiusScale;
+            cc.height = 2f;                        // capsule primitive is 2 units tall before scale
+        }
+
+        static void LimbSphere(GameObject go)
+        {
+            var old = go.GetComponent<Collider>();
+            if (old != null) Object.DestroyImmediate(old);
+            go.AddComponent<SphereCollider>().radius = 0.5f;
+        }
+
+        static void LimbBox(GameObject go)
+        {
+            var old = go.GetComponent<Collider>();
+            if (old != null) Object.DestroyImmediate(old);
+            go.AddComponent<BoxCollider>();
+        }
+
+        /// <summary>Register a limb with the ragdoll, connect it to a parent body with a joint, and make it
+        /// pokeable. parentBody null = this is the root body (the torso).</summary>
+        static RagdollController.Part Limb(RagdollController rag, GameObject go, Rigidbody parentBody, float mass, bool injuredArm,
+            Vector3 lowTwist, Vector3 highTwist, float swing)
+        {
+            var part = rag.AddPart(go.transform, injuredArm, mass);
+
+            if (parentBody != null)
+            {
+                var joint = go.AddComponent<CharacterJoint>();
+                joint.connectedBody = parentBody;
+                joint.enableProjection = true;
+                joint.lowTwistLimit = new SoftJointLimit { limit = lowTwist.x };
+                joint.highTwistLimit = new SoftJointLimit { limit = highTwist.x };
+                joint.swing1Limit = new SoftJointLimit { limit = swing };
+                joint.swing2Limit = new SoftJointLimit { limit = swing };
+            }
+
+            // poke/push: a simple interactable + impulse on this body
+            go.AddComponent<UnityEngine.XR.Interaction.Toolkit.Interactables.XRSimpleInteractable>();
+            var poke = go.AddComponent<Pokeable>();
+            poke.body = part.body;
+            return part;
+        }
+
         static NpcRefs BuildNpc(Transform props)
         {
             var root = new GameObject("NPC_InjuredHiker").transform;
@@ -78,25 +129,54 @@ namespace SplintIt.EditorTools
             sway.localPosition = hip;
 
             // torso, head and the relaxed arm sway gently; legs and the injured arm stay still so placed items never drift
-            Prim(PrimitiveType.Capsule, "Torso", sway, new Vector3(0, 0.98f, -0.05f) - hip, new Vector3(0.34f, 0.30f, 0.22f), gray, false);
-            Prim(PrimitiveType.Sphere, "Head", sway, new Vector3(0, 1.50f, -0.03f) - hip, Vector3.one * 0.22f, gray, false);
-            Prim(PrimitiveType.Capsule, "L_UpperArm", sway, new Vector3(-0.24f, 1.12f, -0.03f) - hip, new Vector3(0.09f, 0.17f, 0.09f), gray, false);
+            var torso = Prim(PrimitiveType.Capsule, "Torso", sway, new Vector3(0, 0.98f, -0.05f) - hip, new Vector3(0.34f, 0.30f, 0.22f), gray, false);
+            var head = Prim(PrimitiveType.Sphere, "Head", sway, new Vector3(0, 1.50f, -0.03f) - hip, Vector3.one * 0.22f, gray, false);
+            var lUpper = Prim(PrimitiveType.Capsule, "L_UpperArm", sway, new Vector3(-0.24f, 1.12f, -0.03f) - hip, new Vector3(0.09f, 0.17f, 0.09f), gray, false);
             var lf = Prim(PrimitiveType.Capsule, "L_Forearm", sway, new Vector3(-0.24f, 0.98f, 0.14f) - hip, new Vector3(0.08f, 0.14f, 0.08f), gray, false);
             lf.transform.localRotation = Quaternion.Euler(90, 0, 0);
 
+            var legParts = new System.Collections.Generic.List<(GameObject th, GameObject sh, GameObject ft)>();
             for (int s = -1; s <= 1; s += 2)
             {
                 var th = Prim(PrimitiveType.Capsule, "Thigh", visual, new Vector3(s * 0.10f, 0.50f, 0.17f), new Vector3(0.16f, 0.20f, 0.16f), gray, false);
                 th.transform.localRotation = Quaternion.Euler(90, 0, 0);
-                Prim(PrimitiveType.Capsule, "Shin", visual, new Vector3(s * 0.10f, 0.24f, 0.40f), new Vector3(0.14f, 0.24f, 0.14f), gray, false);
-                Prim(PrimitiveType.Cube, "Foot", visual, new Vector3(s * 0.10f, 0.04f, 0.48f), new Vector3(0.10f, 0.08f, 0.22f), gray, false);
+                var sh = Prim(PrimitiveType.Capsule, "Shin", visual, new Vector3(s * 0.10f, 0.24f, 0.40f), new Vector3(0.14f, 0.24f, 0.14f), gray, false);
+                var ft = Prim(PrimitiveType.Cube, "Foot", visual, new Vector3(s * 0.10f, 0.04f, 0.48f), new Vector3(0.10f, 0.08f, 0.22f), gray, false);
+                legParts.Add((th, sh, ft));
             }
 
             // injured (right) arm: forearm rests forward at a comfortable height
-            Prim(PrimitiveType.Capsule, "R_UpperArm", visual, new Vector3(0.26f, 1.15f, -0.02f), new Vector3(0.09f, 0.16f, 0.09f), gray, false);
+            var rUpper = Prim(PrimitiveType.Capsule, "R_UpperArm", visual, new Vector3(0.26f, 1.15f, -0.02f), new Vector3(0.09f, 0.16f, 0.09f), gray, false);
             var fa = Prim(PrimitiveType.Capsule, "R_Forearm", visual, ArmLocal, new Vector3(0.08f, 0.15f, 0.08f), gray, false);
             fa.transform.localRotation = Quaternion.Euler(90, 0, 0);
-            Prim(PrimitiveType.Sphere, "R_Hand", visual, ArmLocal + new Vector3(0, 0, 0.19f), Vector3.one * 0.075f, gray, false);
+            var rHand = Prim(PrimitiveType.Sphere, "R_Hand", visual, ArmLocal + new Vector3(0, 0, 0.19f), Vector3.one * 0.075f, gray, false);
+
+            // ---- ragdoll: Rigidbody + collider + joints on every limb (kinematic until the friend collapses) ----
+            var rag = root.gameObject.AddComponent<RagdollController>();
+            rag.visualRoot = visual;
+
+            LimbCapsule(torso, 1); LimbSphere(head);
+            LimbCapsule(lUpper, 1); LimbCapsule(lf, 1);
+            LimbCapsule(rUpper, 1); LimbCapsule(fa, 1); LimbSphere(rHand);
+
+            // torso is the ragdoll root; everything else hangs off it
+            var torsoPart = Limb(rag, torso, null, 8f, false, Vector3.zero, Vector3.zero, 0f);
+            var torsoBody = torsoPart.body;
+            Limb(rag, head, torsoBody, 2f, false, new Vector3(-20, 0, 0), new Vector3(20, 0, 0), 20);
+            var lUpperBody = Limb(rag, lUpper, torsoBody, 1.5f, false, new Vector3(-40, 0, 0), new Vector3(40, 0, 0), 55).body;
+            Limb(rag, lf, lUpperBody, 1f, false, new Vector3(-10, 0, 0), new Vector3(80, 0, 0), 20);
+            var rUpperBody = Limb(rag, rUpper, torsoBody, 1.5f, false, new Vector3(-40, 0, 0), new Vector3(40, 0, 0), 55).body;
+            // the injured forearm + hand are the pinned part: locked kinematic while the splint is built
+            var faBody = Limb(rag, fa, rUpperBody, 1f, true, new Vector3(-10, 0, 0), new Vector3(80, 0, 0), 20).body;
+            Limb(rag, rHand, faBody, 0.4f, true, new Vector3(-10, 0, 0), new Vector3(10, 0, 0), 15);
+
+            foreach (var (th, sh, ft) in legParts)
+            {
+                LimbCapsule(th, 1); LimbCapsule(sh, 1); LimbBox(ft);
+                var thBody = Limb(rag, th, torsoBody, 3f, false, new Vector3(-30, 0, 0), new Vector3(60, 0, 0), 35).body;
+                var shBody = Limb(rag, sh, thBody, 2f, false, new Vector3(-80, 0, 0), new Vector3(0, 0, 0), 15).body;
+                Limb(rag, ft, shBody, 0.8f, false, new Vector3(-20, 0, 0), new Vector3(20, 0, 0), 15);
+            }
 
             // injury indicator: a simple band + "!" sign. No blood, no distorted limbs.
             var band = Prim(PrimitiveType.Cylinder, "InjuryBand", visual, ArmLocal, new Vector3(0.11f, 0.008f, 0.11f), U("InjuryBand", "#FF8A00"), false);
@@ -122,7 +202,7 @@ namespace SplintIt.EditorTools
             reaction.bandHurtMaterial = U("InjuryBand", "#FF8A00");
             reaction.bandReliefMaterial = U("InjuryOk", "#2ED47A");
 
-            return new NpcRefs { root = root, reaction = reaction };
+            return new NpcRefs { root = root, reaction = reaction, ragdoll = rag };
         }
 
         // ------------------------------------------------------------------ placement zones
@@ -185,6 +265,11 @@ namespace SplintIt.EditorTools
             var item = root.AddComponent<SplintItem>();
             item.displayName = display; item.role = role; item.length = length; item.lengthAxis = Vector3.forward;
             item.whyGood = good; item.whyNotSuitable = bad;
+
+            // make the prop react to a poke/push (uses the item's own XRGrabInteractable hover; held items are skipped)
+            var poke = root.AddComponent<Pokeable>();
+            poke.body = rb;
+            poke.pushStrength = 1.4f;   // props are light; a gentle nudge
 
             var marker = MeshObj("HintMarker", Cone("MarkerCone", 5, 1f, 1.6f, 0f), root.transform, new Vector3(0, 0.30f, 0), new Vector3(0.05f, 0.06f, 0.05f), U("Hint", "#FFE600"), Quaternion.Euler(180, 0, 0), false);
             marker.SetActive(false);
@@ -465,7 +550,7 @@ namespace SplintIt.EditorTools
             var comfort = sys.AddComponent<ComfortSettings>();
 
             var flow = sys.AddComponent<DemoFlow>();
-            flow.build = build; flow.timer = timer; flow.npc = npc.reaction; flow.tracking = tracking; flow.comfort = comfort;
+            flow.build = build; flow.timer = timer; flow.npc = npc.reaction; flow.ragdoll = npc.ragdoll; flow.tracking = tracking; flow.comfort = comfort;
             flow.menuPanel = h.menuPanel; flow.roundPanel = h.roundPanel; flow.resultPanel = h.resultPanel; flow.pausePanel = h.pausePanel;
             flow.menuBriefing = h.menuBriefing; flow.menuNotice = h.menuNotice; flow.guidedButton = h.guidedButton; flow.evaluationButton = h.evaluationButton;
             flow.objectiveText = h.objectiveText; flow.checklistText = h.checklistText; flow.statusText = h.statusText; flow.toastText = h.toastText;

@@ -6,7 +6,7 @@ using UnityEngine.XR;
 
 namespace SplintIt
 {
-    public enum FlowState { Menu, Playing, Paused, Result }
+    public enum FlowState { Menu, Cutscene, Playing, Paused, Result }
 
     /// <summary>Menu -> briefing -> round -> result, plus pause, tracking-loss recovery and comfort.
     /// All references are assigned by HikingDemoSceneBuilder; buttons are wired here at runtime.</summary>
@@ -17,9 +17,14 @@ namespace SplintIt
         public SplintBuildController build;
         public RoundTimer timer;
         public NpcReaction npc;
+        public RagdollController ragdoll;
         public TrackingGuard tracking;
         public ComfortSettings comfort;
         public string scenarioName = "Hiking";
+
+        [Header("Cutscene")]
+        [Tooltip("Seconds the friend tumbles before the body settles and splinting begins.")]
+        public float collapseSeconds = 2f;
 
         [Header("Panels")]
         public GameObject menuPanel;
@@ -143,10 +148,17 @@ namespace SplintIt
 
         void ShowMenu()
         {
+            StopAllCoroutines();
             Time.timeScale = 1f;
             build.EndRound();
             state = FlowState.Menu;
             SetPanels(true, false, false, false);
+            if (ragdoll != null)
+            {
+                ragdoll.PinInjuredArm(true);   // keep the arm fixed in the authored pose
+                ragdoll.StandUp();             // reset the body to standing for the next round's cutscene
+            }
+            if (npc != null) npc.SetSwayEnabled(true);
             if (menuNotice != null)
                 menuNotice.text = SaveSystem.Message.Length > 0 ? SaveSystem.Message : "Guided: no timer, highlights and hints.   Evaluation: " + Mathf.RoundToInt(timer.durationSeconds) + " s timer, no hints.";
             npc.SetMood(NpcReaction.Mood.Hurt);
@@ -155,9 +167,55 @@ namespace SplintIt
 
         void StartRound(GameMode mode)
         {
+            StopAllCoroutines();
+            StartCoroutine(CollapseThenPlay(mode));
+        }
+
+        /// <summary>The friend is standing, then collapses (ragdoll) and settles; only then does splinting begin.
+        /// The injured forearm is pinned once the body rests so the splint zones stay fixed.</summary>
+        System.Collections.IEnumerator CollapseThenPlay(GameMode mode)
+        {
             Time.timeScale = 1f;
             lastMode = mode;
             pendingRestart = pendingQuit = false;
+            state = FlowState.Cutscene;
+
+            // hide the gameplay boards during the short cutscene; keep everything frozen/not interactable
+            SetPanels(false, false, false, false);
+            build.EndRound();
+
+            if (ragdoll != null)
+            {
+                npc.SetSwayEnabled(false);
+                ragdoll.StandUp();
+            }
+            npc.SetMood(NpcReaction.Mood.Hurt);
+            npc.Say("Whoa-!", 1.2f);
+
+            // let the stand pose show for a beat, then drop
+            yield return new WaitForSeconds(0.4f);
+
+            if (ragdoll != null)
+            {
+                // shove roughly toward the player's side so the friend slumps against the log
+                Vector3 shove = (npc != null ? -npc.transform.forward : Vector3.back) + Vector3.down * 0.3f;
+                ragdoll.Collapse(shove);
+                Feedback.Play(Sfx.Fail);
+                Feedback.Haptic(0.5f, 0.15f);
+            }
+            npc.Say("Aah! My arm...", 3f);
+
+            yield return new WaitForSeconds(collapseSeconds);
+
+            // body has settled: pin the injured forearm so placed splint pieces never drift
+            if (ragdoll != null) ragdoll.PinInjuredArm(true);
+
+            BeginPlay(mode);
+        }
+
+        void BeginPlay(GameMode mode)
+        {
+            Time.timeScale = 1f;
             build.BeginRound(mode);
             lastStep = 0;
             state = FlowState.Playing;
@@ -250,6 +308,7 @@ namespace SplintIt
             Time.timeScale = 0f;
             timer.SetPaused(true);
             build.SetPaused(true);
+            if (ragdoll != null) ragdoll.Stabilize();
             pendingRestart = pendingQuit = false;
             if (pauseNotice != null && !headsetAway) pauseNotice.text = "Round paused. Timer, objects and the patient are frozen.";
             UpdatePauseLabels();

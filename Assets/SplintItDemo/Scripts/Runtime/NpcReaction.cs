@@ -24,11 +24,20 @@ namespace SplintIt
 
         Mood mood;
         float speechUntil;
+        bool swayEnabled = true;
 
         void Awake()
         {
             if (speechBubble != null) speechBubble.SetActive(false);
             SetMood(Mood.Hurt);
+        }
+
+        /// <summary>Turn the idle sway off while the body is a live ragdoll (physics drives the limbs instead),
+        /// and back on when it stands up. Resets the sway root to neutral when disabled.</summary>
+        public void SetSwayEnabled(bool on)
+        {
+            swayEnabled = on;
+            if (!on && swayRoot != null) swayRoot.localRotation = Quaternion.identity;
         }
 
         public void SetMood(Mood m)
@@ -51,7 +60,7 @@ namespace SplintIt
 
         void Update()
         {
-            if (swayRoot != null)
+            if (swayEnabled && swayRoot != null)
             {
                 float amp = mood == Mood.Hurt ? 1.2f : (mood == Mood.Steadier ? 0.7f : 0.3f);
                 float speed = mood == Mood.Hurt ? 1.8f : 1.0f;

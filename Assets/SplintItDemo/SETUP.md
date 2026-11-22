@@ -30,9 +30,23 @@ see "If something does not compile" at the bottom (usually a one-line namespace 
 - **Quest (Link / Air Link):** press Play with the headset connected.
 - **Standalone Quest build:** File > Build Settings > Android > Switch Platform > Build And Run.
 
-Round: **Guided** (no timer, glowing hints) or **Evaluation** (150 s, no hints). Pick items from the SUPPLIES table, put the useful ones on the
-PREP table, then: support along the arm -> padding -> two straps (release and hold still ~1 s) -> press CHECK SPLINT.
-Left menu button = pause.
+Round: **Guided** (no timer, glowing hints) or **Evaluation** (150 s, no hints). When a round starts, the friend
+**collapses** in a short ragdoll cutscene and settles by the log; then splinting begins. Pick items from the SUPPLIES
+table, put the useful ones on the PREP table, then: support along the arm -> padding -> two straps (release and hold
+still ~1 s) -> press CHECK SPLINT. Left menu button = pause.
+
+## Collapse cutscene, ragdoll and poke/push
+- `RagdollController` (on `Props > NPC_InjuredHiker`) adds a Rigidbody + collider + `CharacterJoint` to every gray
+  limb. The body is **kinematic (standing)** until the round starts, then `DemoFlow` plays the cutscene: `StandUp()` ->
+  `Collapse()` (the friend falls) -> after `collapseSeconds` the **injured forearm is pinned** (`PinInjuredArm(true)`).
+- The forearm is pinned on purpose: the splint placement zones are anchored at the forearm, so it must not move while
+  you build the splint, otherwise placed pieces would drift. The rest of the body (torso, head, legs, good arm) stays
+  soft and can be **poked / pushed**.
+- `Pokeable` (on every limb and every grabbable item) pushes the Rigidbody away from your fingertip when you touch it.
+  Held items and pinned/kinematic bodies absorb the poke instead of moving.
+- Tuning: cutscene length = `DemoFlow.collapseSeconds`; fall shove = `RagdollController.collapseShove`; limb push
+  strength = `Pokeable.pushStrength`. The injured limb stays gray/placeholder like the rest (no gore).
+
 
 ## Replace the gray placeholder characters
 - The NPC is `Props > NPC_InjuredHiker > Visual_REPLACE_WITH_YOUR_MODEL` (all gray primitives).
